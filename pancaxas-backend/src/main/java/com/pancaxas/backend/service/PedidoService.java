@@ -1,7 +1,9 @@
 package com.pancaxas.backend.service;
 
 import com.pancaxas.backend.dto.pedido.CheckoutRequest;
+import com.pancaxas.backend.dto.pedido.CambiarEstadoRequest;
 import com.pancaxas.backend.dto.pedido.HistorialEstadoResponse;
+import com.pancaxas.backend.dto.pedido.PedidoAdminResumenResponse;
 import com.pancaxas.backend.dto.pedido.PedidoDetalleResponse;
 import com.pancaxas.backend.dto.pedido.PedidoResponse;
 import com.pancaxas.backend.dto.pedido.PedidoResumenResponse;
@@ -36,7 +38,6 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PedidoService {
 
-    /** Costo de envío fijo para el MVP (Cajamarca, zona única de cobertura). */
     private static final BigDecimal COSTO_ENVIO = new BigDecimal("5.00");
     private static final String ESTADO_RECIBIDO = "RECIBIDO";
 
@@ -131,6 +132,55 @@ public class PedidoService {
         return pedidoRepository.findByUsuarioIdOrderByFechaPedidoDesc(usuarioId).stream()
                 .map(this::aResumen)
                 .collect(Collectors.toList());
+    }
+
+    // -------- Administrador (panel de pedidos) --------
+
+    public List<PedidoAdminResumenResponse> listarTodos(String estado) {
+        List<Pedido> pedidos = (estado != null && !estado.isBlank())
+                ? pedidoRepository.findByEstado_NombreOrderByFechaPedidoDesc(estado.toUpperCase())
+                : pedidoRepository.findAllByOrderByFechaPedidoDesc();
+
+        return pedidos.stream().map(this::aResumenAdmin).collect(Collectors.toList());
+    }
+
+    public PedidoResponse obtenerDetalleAdmin(Long pedidoId) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido no encontrado con id: " + pedidoId));
+        return aResponse(pedido);
+    }
+
+    @Transactional
+    public PedidoResponse cambiarEstado(Long pedidoId, CambiarEstadoRequest request) {
+        Pedido pedido = pedidoRepository.findById(pedidoId)
+                .orElseThrow(() -> new RecursoNoEncontradoException("Pedido no encontrado con id: " + pedidoId));
+
+        EstadoPedido nuevoEstado = estadoPedidoRepository.findByNombre(request.getEstado().toUpperCase())
+                .orElseThrow(() -> new RecursoNoEncontradoException(
+                        "Estado no válido: " + request.getEstado()
+                                + ". Usa RECIBIDO, EN_PREPARACION, EN_CAMINO, ENTREGADO o CANCELADO"));
+
+        pedido.setEstado(nuevoEstado);
+        pedido.getHistorial().add(HistorialEstadoPedido.builder()
+                .pedido(pedido)
+                .estado(nuevoEstado)
+                .comentario(request.getComentario())
+                .build());
+
+        pedido = pedidoRepository.save(pedido);
+        return aResponse(pedido);
+    }
+
+    private PedidoAdminResumenResponse aResumenAdmin(Pedido p) {
+        return PedidoAdminResumenResponse.builder()
+                .id(p.getId())
+                .codigoPedido(p.getCodigoPedido())
+                .estado(p.getEstado().getNombre())
+                .clienteNombre(p.getUsuario().getNombre() + " " + p.getUsuario().getApellido())
+                .clienteCorreo(p.getUsuario().getCorreo())
+                .total(p.getTotal())
+                .fechaPedido(p.getFechaPedido())
+                .build();
     }
 
     private Pedido obtenerYVerificarPropietario(Long usuarioId, Long pedidoId) {
