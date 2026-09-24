@@ -30,6 +30,21 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.NOT_FOUND, ex.getMessage(), null);
     }
 
+    @ExceptionHandler(AccesoDenegadoException.class)
+    public ResponseEntity<ApiError> handleAccesoDenegado(AccesoDenegadoException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(StockInsuficienteException.class)
+    public ResponseEntity<ApiError> handleStockInsuficiente(StockInsuficienteException ex) {
+        return build(HttpStatus.CONFLICT, ex.getMessage(), null);
+    }
+
+    @ExceptionHandler(CarritoVacioException.class)
+    public ResponseEntity<ApiError> handleCarritoVacio(CarritoVacioException ex) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), null);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiError> handleValidacion(MethodArgumentNotValidException ex) {
         List<String> detalles = ex.getBindingResult().getFieldErrors().stream()
